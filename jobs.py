@@ -153,18 +153,18 @@ def generate_bernoulli_jobs(duration_split=0.8,
     #Calculate expected job duration and utilization
     ave_short = (short_duration[1] + short_duration[0]) / 2
     ave_long = (long_duration[1] + long_duration[0]) / 2
-    ave_main_resource = (main_resource_range[1] + main_resource_range[0])
+    ave_main_resource = (main_resource_range[1] + main_resource_range[0]) / 2
 
     #We will consider all non-main resources as using the same
-    ave_secondary_resource = (secondary_resource_range[1] - secondary_resource_range[0]) / 2
+    ave_secondary_resource = (secondary_resource_range[1] + secondary_resource_range[0]) / 2
 
     expected_duration = (duration_split * ave_short + (1 - duration_split) * ave_long)
     
-    #Weighted average of utilizations
+    #Average utilization / resource
     expected_utilization = (ave_main_resource * (1 / num_resources) + ave_secondary_resource * (1 - 1 / num_resources)) 
 
-    #Calculate how many jobs we want at once
-    desired_concurrent_jobs = num_clusters * num_resources * desired_utilization / expected_utilization
+    #Calculate how many jobs we want at once = total number of clusters
+    desired_concurrent_jobs = num_clusters * desired_utilization / expected_utilization
 
     jobs_per_second = desired_concurrent_jobs / expected_duration
 
