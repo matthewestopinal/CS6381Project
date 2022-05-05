@@ -8,12 +8,9 @@ stores the state of a single cluster during the simulation and also stores
 a history of utillizations and completed jobs
 '''
 
-
 #Import the Job object
-from jobs.py import Job
+from jobs import Job
 
-from abc import ABC, abstractmethod
-import random
 
 #Maintains resources of a 
 class Cluster:
@@ -33,7 +30,7 @@ class Cluster:
     def check_job_possible(self, job):
         count = 0
         for requirement in job.get_requirements():
-            if self.resource[count] + requirement > 1:
+            if self.cur_utilization[count] + requirement > 1:
                 return False
         return True
 
@@ -60,9 +57,8 @@ class Cluster:
 
     #VOID accepts job, and sets utilization
     def schedule_job(self, job):
-        count = 0
-        for requirement in job.get_requirements():
-            self.resource[count] += requirement
+        for index, requirement in enumerate(job.get_requirements()):
+            self.cur_utilization[index] += requirement
         
         #Keep Track of when the job started
         job.set_start_time(self.timestep)
@@ -74,12 +70,11 @@ class Cluster:
     #Moves job from current job list to completed job list
     #Removes it's utilization from resources
     def complete_job(self, job):
-        count = 0
-        for requirement in job.get_requirements():
-            self.resource[count] -= requirement
+        for index, requirement in enumerate(job.get_requirements()):
+            self.cur_utilization[index] -= requirement
 
         job.set_finish_time(self.timestep)
-        self.complete_job.append(job)
+        self.completed_jobs.append(job)
         self.cur_jobs.remove(job)
 
     #VOID Advances the timestep of the simulation
@@ -95,7 +90,7 @@ class Cluster:
         self.start_from_queue()
 
         #Maintain history for visualization
-        self.utilization_history.append(self.cur_utilization)
+        self.utilization_history.append(self.cur_utilization[:])
 
     #Returns (list) of resource utilizations
     #Float in range 0-1
@@ -115,49 +110,3 @@ class Cluster:
     #
     def get_completed_jobs(self):
         return self.completed_jobs
-
-#Abstract Base Class for our various scheduler types
-class Scheduler(ABC):
-
-    #Method to Schedule Job
-    #Params:
-    #   clusters: (list) of (Cluster) objects
-    #   job: (Job) object to be scheduled
-    #Returns:
-    #   (int) index of cluster in list to be assigned to
-    #       -1 if job is to be delayed and re-scheduled
-    @abstractmethod
-    def schedule_job(self, clusters, job):
-        pass
-
-#Random Scheduler
-class RandomScheduler(Scheduler):
-
-    #Outputs a random index in the cluster list
-    def schedule_job(self, clusters, job):
-        return random.randint(0,len(clusters))
-
-#First Available Scheduler
-class FirstAvailableScheduler(Scheduler):
-
-    #Tries to find the first available cluster
-    def schedule_job(self, clusters, job):
-        for index, cluster in enumerate(clusters):
-            if cluster.check_job_possible(job):
-                return index
-
-        #Job did not fit on any machine
-        return -1
-
-#Round Robin Scheduler
-class RoundRobinScheduler(Scheduler):
-    def __init__(self):
-        self.cur_cluster = 0
-        super.__init__()
-
-    def schedule_job(self, clusters, job):
-        cluster = self.cur_cluster
-        self.cur_cluster += 1
-        if self.cur_cluster >= len(clusters):
-            self.cur_cluster = 0
-        return cluster

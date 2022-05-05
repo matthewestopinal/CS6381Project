@@ -9,7 +9,8 @@ as various implementations following different Scheduling Rules
 
 from abc import ABC, abstractmethod
 import random
-from cluster.py import Cluster
+import numpy as np
+from cluster import Cluster
 
 #Abstract Base Class for our various scheduler types
 class Scheduler(ABC):
@@ -30,7 +31,17 @@ class RandomScheduler(Scheduler):
 
     #Outputs a random index in the cluster list
     def schedule_job(self, clusters, job):
-        return random.randint(0,len(clusters))
+        #Create a random order of indices
+        indices = np.arange(len(clusters))
+        np.random.shuffle(indices)
+
+        #Try to fit job in first available randomly drawn
+        for index in indices:
+            if clusters[index].check_job_possible(job):
+                return index
+        
+        #No fit on clusters
+        return -1
 
 #First Available Scheduler
 class FirstAvailableScheduler(Scheduler):
@@ -44,18 +55,50 @@ class FirstAvailableScheduler(Scheduler):
         #Job did not fit on any machine
         return -1
 
+#Schedules job in order of Least Load    
+class LeastLoadScheduler(Scheduler):
+
+    def schedule_job(self, clusters, job):
+        utilizations = []
+        indices = []
+
+        #Get a list of total utilization in each cluster
+        for index, cluster in enumerate(clusters):
+            indices.append(index)
+            cluster_utilizations = cluster.get_utilization()
+            utilizations.append(sum(cluster_utilizations))
+
+        #Sort indices in order of least utilization
+        sorted_indices = [index for _,index in sorted(zip(utilizations, indices))]
+
+        #Try to fit job in order of Least Load
+        for index in sorted_indices:
+            if clusters[index].check_job_possible(job):
+                return index
+        
+        #No fit on clusters
+        return -1
+
 #Round Robin Scheduler
 class RoundRobinScheduler(Scheduler):
     def __init__(self):
         self.cur_cluster = 0
-        super.__init__()
 
     def schedule_job(self, clusters, job):
         cluster = self.cur_cluster
-        self.cur_cluster += 1
-        if self.cur_cluster >= len(clusters):
-            self.cur_cluster = 0
-        return cluster
+
+        indices = np.arange(cluster, cluster + len(clusters), dtype=int)
+        indices = np.mod(indices, len(clusters))
+
+        #Try to fit job in first available drawn
+        for index in indices:
+            if clusters[index].check_job_possible(job):
+                self.cur_cluster = np.mod(cluster + 1, len(clusters))
+                return index
+        
+        #No fit on clusters
+        self.cur_cluster = np.mod(cluster + 1, len(clusters))
+        return -1
 
 #DeepQLearning Scheduler
 #TODO: Implement the deep learning model
