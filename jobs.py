@@ -138,8 +138,8 @@ def build_random_job(arrival_time=0,
 #   num_clusters: (int) number of clusters
 #   num_resources: (int) number of resources
 #   timesteps: (int) duration of simulation
-#Returns: [Job, Job, ...] or [Job, [Job, Job], ]
-#   Each index corresponds to a timestep, None if no job
+#Returns: (list) of (lists) containing Jobs to add at each time step
+#   Each index corresponds to a timestep, empty list if no job
 def generate_bernoulli_jobs(duration_split=0.8,
                             short_duration=(1,60),
                             long_duration=(200,300),
@@ -164,32 +164,31 @@ def generate_bernoulli_jobs(duration_split=0.8,
     expected_utilization = (ave_main_resource * (1 / num_resources) + ave_secondary_resource * (1 - 1 / num_resources)) 
 
     #Calculate how many jobs we want at once
-    #Note that this slightly overestimates 
-    desired_concurrent_jobs = num_clusters * desired_utilization / expected_utilization
+    desired_concurrent_jobs = num_clusters * num_resources * desired_utilization / expected_utilization
 
     jobs_per_second = desired_concurrent_jobs / expected_duration
 
-    if(jobs_per_second >= 1):
-        print("Want's more than one job per second. How to handle?")
-        return []
 
     #Now that we have our parameters we can start generating jobs
     jobs = []
     for i in range(timesteps):
+        jobs_to_add = []
         #Check if we are submitting a job
-        job_roll = random.random()
-        if job_roll > jobs_per_second:
-            jobs.append(None)
-            continue
+        for i in range(num_resources):
+            job_roll = random.random()
+            if job_roll > jobs_per_second / num_resources:
+                continue
+                
+            my_job = build_random_job(arrival_time=i,
+                                    duration_split=duration_split,
+                                    short_duration=short_duration,
+                                    long_duration=long_duration,
+                                    main_resource_range=main_resource_range,
+                                    secondary_resource_range=secondary_resource_range,
+                                    num_resources=num_resources)
             
-        my_job = build_random_job(arrival_time=i,
-                                  duration_split=duration_split,
-                                  short_duration=short_duration,
-                                  long_duration=long_duration,
-                                  main_resource_range=main_resource_range,
-                                  secondary_resource_range=secondary_resource_range,
-                                  num_resources=num_resources)
+            jobs_to_add.append(my_job)
         
-        jobs.append(my_job)
+        jobs.append(jobs_to_add)
 
     return jobs

@@ -53,7 +53,7 @@ def main():
     if args.scheduler == 'first-available':
         my_scheduler = sc.FirstAvailableScheduler()
     elif args.scheduler == 'round-robin':
-        my_scheduler = sc.FirstAvailableScheduler()
+        my_scheduler = sc.RoundRobinScheduler()
     elif args.scheduler == 'rl':
         my_scheduler = sc.RLScheduler()
     elif args.scheduler == 'least-load':
@@ -73,17 +73,33 @@ def main():
     cur_job = 0
     for t in range(args.timesteps):
         #Try to schedule all arrived jobs
+        #TODO Fix advancing past current jobs
         while cur_job <= t:
-            if not (job_queue[cur_job] is None):
-                #Get the assigned cluster
-                assigned_cluster = my_scheduler.schedule_job(clusters, job_queue[cur_job])
-                #print(f"Assigned cluster: {assigned_cluster}")
-                #Put job on cluster
-                if assigned_cluster == -1:
+            if len(job_queue[cur_job]) > 0:
+
+                #Create a copy of the list to iterate through
+                jobs_to_schedule = job_queue[cur_job]
+                jobs_to_schedule = jobs_to_schedule[:]
+
+                jobs_remaining = False
+                for job in jobs_to_schedule:
+                    #Get the assigned cluster
+                    assigned_cluster = my_scheduler.schedule_job(clusters, job)
+                    #print(f"Assigned cluster: {assigned_cluster}")
+                    #Put job on cluster
+                    if assigned_cluster == -1:
+                        jobs_remaining = True
+                        break
+                    else:
+                        clusters[assigned_cluster].schedule_job(job)
+                        job_queue[cur_job].remove(job)
+
+                #A little messy but I suppose it is what it is
+                if jobs_remaining:
                     break
                 else:
-                    clusters[assigned_cluster].schedule_job(job_queue[cur_job])
                     cur_job += 1
+
             else:
                 cur_job += 1
         
