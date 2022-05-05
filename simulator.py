@@ -6,6 +6,7 @@
 Contains the code to run the simulation under various different
 configurations.
 '''
+from re import A
 from jobs import Job
 from jobs import generate_bernoulli_jobs
 from cluster import Cluster
@@ -28,21 +29,40 @@ def parseCmdLineArgs():
 #
 def graph_utilization(clusters):
     num_clusters = len(clusters)
-    fig, axs = plt.subplots(1, num_clusters, constrained_layout=True)
+    fig, axs = plt.subplots(2, num_clusters, constrained_layout=True)
 
     for index, cluster in enumerate(clusters):
         resources = np.array(cluster.get_utilization_history())
         num_resources = resources.shape[1]
 
+        #Plot resource utiliztion
         for resource in range(num_resources):
             resource_values = resources[:, resource]
-            #print(resource_values)
-            axs[index].plot(resource_values)
-        #Want to reshape our resource
+            axs[0,index].plot(resource_values)
 
-        axs[index].set_ylabel('Utilizations')
-        axs[index].set_xlabel('Time')
-        axs[index].set_ylim([0,1])
+        axs[0,index].set_ylabel('Utilizations')
+        axs[0,index].set_xlabel('Time')
+        axs[0,index].set_ylim([0,1])
+
+        #Get our imbalance and averages
+        diff = cluster.get_utilization_history_difference()
+        utilization_ave = cluster.get_utilization_history_average()
+
+        axs[1,index].plot(utilization_ave, 'g', label='mean utilization')
+
+        ax2 = axs[1,index].twinx()
+        ax2.plot(diff, 'r', label='imbalance')
+        ax2.set_ylabel('Degree of Imbalance')
+        ax2.set_ylim([0,0.6])
+        ax2.legend(loc='upper right', frameon=False)
+
+        axs[1,index].set_xlabel('Time')
+        axs[1,index].set_ylim([0,1])
+        axs[1,index].set_ylabel('Mean Utilization')
+        axs[1,index].legend(loc='upper left', frameon=False)
+
+    fig.set_size_inches((16,9))
+
     return fig
 
 def main():
@@ -84,14 +104,16 @@ def main():
                 jobs_remaining = False
                 for job in jobs_to_schedule:
                     #Get the assigned cluster
+
                     assigned_cluster = my_scheduler.schedule_job(clusters, job)
-                    #print(f"Assigned cluster: {assigned_cluster}")
+
                     #Put job on cluster
                     if assigned_cluster == -1:
                         jobs_remaining = True
                         break
                     else:
                         clusters[assigned_cluster].schedule_job(job)
+
                         job_queue[cur_job].remove(job)
 
                 #A little messy but I suppose it is what it is

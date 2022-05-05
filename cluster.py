@@ -24,14 +24,15 @@ class Cluster:
         self.cur_jobs = []
         self.completed_jobs = []
         self.job_queue = []
+        self.num_resources = resources
 
     #Accepts a (Job) object
     #Returns True if the job can be scheduled right now
     def check_job_possible(self, job):
-        count = 0
-        for requirement in job.get_requirements():
-            if self.cur_utilization[count] + requirement > 1:
+        for index, requirement in enumerate(job.get_requirements()):
+            if self.cur_utilization[index] + requirement >= 1:
                 return False
+
         return True
 
     #Method to add jobs to a queue of a cluster
@@ -101,6 +102,45 @@ class Cluster:
     #Each list corresponds to the resource utilization at a given timestep
     def get_utilization_history(self):
         return self.utilization_history
+
+    #Returns (list) of floats
+    #Each value is the degree of difference between resource utilization in the cluster
+    def get_utilization_history_difference(self):
+
+        diff_list = []
+
+        for timestep in self.utilization_history:
+            utilization_sum = 0
+            for i in range(self.num_resources):
+                utilization_sum += timestep[i]
+
+            utilization_ave = utilization_sum / self.num_resources
+
+            diff = 0
+
+            #Sum all the resource diffs
+            for i in range(self.num_resources):
+                if utilization_ave > 0:
+                    resource_diff = ((timestep[i] / utilization_ave) - 1) ** 2
+                    diff += resource_diff
+
+            diff_list.append(diff)
+
+        return diff_list
+
+    #Returns (list) of floats
+    #Each float is the average utilization within the cluster at the timestep
+    def get_utilization_history_average(self):
+        ave_list = []
+        for timestep in self.utilization_history:
+            utilization_sum = 0
+            for i in range(self.num_resources):
+                utilization_sum += timestep[i]
+
+            utilization_ave = utilization_sum / self.num_resources
+            ave_list.append(utilization_ave)
+        
+        return ave_list
 
     #Returns (int) current time step of cluster
     def get_timestep(self):
