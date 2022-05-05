@@ -22,11 +22,17 @@ def parseCmdLineArgs():
     parser.add_argument('-t', '--timesteps', default = 800, help='Length of time that jobs can arrive', type=int)
     parser.add_argument('-s', '--scheduler', default='random', help = 'Which scheduler to use')
     parser.add_argument('-o', '--output', default='output.png', help = 'Name of output file for graphed figures')
+    parser.add_argument('-u', '--utilization', default=0.7, type=float, help='Desired total utilization (between 0 and 1)')
+    parser.add_argument('-n', '--num_clusters', default=3, type=int, help='Number of clusters to simulate')
+    parser.add_argument('-r', '--num_resources', default=2, type=int, help='Number of resources on each cluster')
+
     return parser.parse_args()
 
 #Function to graph the resource utilization of each cluster
 #Params:
-#
+#   clusters: (list) of (Cluster) object whose history we would like to graph
+#Returns
+#   (pyplot Figure Object) to save or display
 def graph_utilization(clusters):
     num_clusters = len(clusters)
     fig, axs = plt.subplots(2, num_clusters, constrained_layout=True)
@@ -79,15 +85,16 @@ def main():
     elif args.scheduler == 'least-load':
         my_scheduler = sc.LeastLoadScheduler()
 
-    num_clusters = 3
-    num_resources = 2
+    num_clusters = args.num_clusters
+    num_resources = args.num_resources
+    target_utilization = args.utilization
 
     #Create our clusters
     clusters = []
     for i in range(num_clusters):
         clusters.append(Cluster(resources=num_resources))
 
-    job_queue = generate_bernoulli_jobs()
+    job_queue = generate_bernoulli_jobs(num_clusters=num_clusters, num_resources=num_resources, desired_utilization=target_utilization)
 
     #Main Loop
     cur_job = 0
