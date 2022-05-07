@@ -192,3 +192,50 @@ def generate_bernoulli_jobs(duration_split=0.8,
         jobs.append(jobs_to_add)
 
     return jobs
+
+
+def generate_bernoulli_jobs_rl(duration_split=0.8,
+                            short_duration=(1, 60),
+                            long_duration=(200, 300),
+                            main_resource_range=(0.025, 0.05),
+                            secondary_resource_range=(0.005, 0.01),
+                            desired_utilization=0.7,
+                            num_clusters=3,
+                            num_resources=2,
+                            timesteps=800):
+    # Calculate expected job duration and utilization
+    ave_short = (short_duration[1] + short_duration[0]) / 2
+    ave_long = (long_duration[1] + long_duration[0]) / 2
+    ave_main_resource = (main_resource_range[1] + main_resource_range[0]) / 2
+
+    # We will consider all non-main resources as using the same
+    ave_secondary_resource = (secondary_resource_range[1] + secondary_resource_range[0]) / 2
+
+    expected_duration = (duration_split * ave_short + (1 - duration_split) * ave_long)
+
+    # Average utilization / resource
+    expected_utilization = (ave_main_resource * (1 / num_resources) + ave_secondary_resource * (1 - 1 / num_resources))
+
+    # Calculate how many jobs we want at once = total number of clusters
+    desired_concurrent_jobs = num_clusters * desired_utilization / expected_utilization
+
+    jobs_per_second = desired_concurrent_jobs / expected_duration
+
+    # Now that we have our parameters we can start generating jobs
+    jobs = []
+    for i in range(timesteps):
+
+
+        my_job = build_random_job(arrival_time=i,
+                                  duration_split=duration_split,
+                                  short_duration=short_duration,
+                                  long_duration=long_duration,
+                                  main_resource_range=main_resource_range,
+                                  secondary_resource_range=secondary_resource_range,
+                                  num_resources=num_resources)
+
+
+
+        jobs.append(my_job)
+
+    return jobs

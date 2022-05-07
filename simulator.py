@@ -8,12 +8,14 @@ configurations.
 '''
 from re import A
 from jobs import Job
-from jobs import generate_bernoulli_jobs
+from jobs import generate_bernoulli_jobs, generate_bernoulli_jobs_rl
 from cluster import Cluster
 import scheduler as sc
 import matplotlib.pyplot as plt
 import numpy as np
-
+import DoubleDQN as DDQN
+import DuelingDQN as DueDQN
+import DQN as DQN
 import argparse
 
 def parseCmdLineArgs():
@@ -25,10 +27,7 @@ def parseCmdLineArgs():
     parser.add_argument('-u', '--utilization', default=0.7, type=float, help='Desired total utilization (between 0 and 1)')
     parser.add_argument('-n', '--num_clusters', default=3, type=int, help='Number of clusters to simulate')
     parser.add_argument('-r', '--num_resources', default=2, type=int, help='Number of resources on each cluster')
-
-    parser.add_argument('-a', '--alpha', default = 1, type=float, help='alpha for reward function')
-    parser.add_argument('-b', '--beta', default = 1, type=float, help='beta for reward function')
-    parser.add_argument('-c', '--gamma', default = 1, type=float, help='gamma for reward function')
+    parser.add_argument('-a', '--algo', default='double', type=str, help='Reinforcement learning algorithm')
 
     return parser.parse_args()
 
@@ -85,15 +84,18 @@ def main():
     elif args.scheduler == 'round-robin':
         my_scheduler = sc.RoundRobinScheduler()
     elif args.scheduler == 'rl':
-        my_scheduler = sc.RLScheduler()
+        MAX_EPISODES = 1000
+        #MAX_STEPS = 500
+        batch_size = 32
+        #episode_rewards = RL.mini_batch_train(env, agent, MAX_EPISODES, MAX_STEPS, BATCH_SIZE)
     elif args.scheduler == 'least-load':
         my_scheduler = sc.LeastLoadScheduler()
-    elif args.scheduler == 'instant-gratification':
-        my_scheduler = sc.InstantGratificationScheduler(args.alpha, args.beta, args.gamma)
-
     num_clusters = args.num_clusters
     num_resources = args.num_resources
     target_utilization = args.utilization
+
+
+    #env = gym.make(env_id)
 
     #Create our clusters
     clusters = []
@@ -101,48 +103,135 @@ def main():
         clusters.append(Cluster(resources=num_resources))
 
     job_queue = generate_bernoulli_jobs(num_clusters=num_clusters, num_resources=num_resources, desired_utilization=target_utilization)
-
     #Main Loop
     cur_job = 0
-    for t in range(args.timesteps):
-        #Try to schedule all arrived jobs
-        #TODO Fix advancing past current jobs
-        while cur_job <= t:
-            if len(job_queue[cur_job]) > 0:
 
-                #Create a copy of the list to iterate through
-                jobs_to_schedule = job_queue[cur_job]
-                jobs_to_schedule = jobs_to_schedule[:]
+    if args.scheduler == 'rl':
+        episode_rewards = []
+        #agent = RL.DuelingAgent(num_clusters, num_resources)
+        if args.algo == 'double':
+            agent = DDQN.DDQNAgent(num_clusters, num_resources)
+        elif args.algo == 'dule':
+            agent = DueDQN.DuelingAgent(num_clusters, num_resources)
+        elif args.algo == 'dqn':
+            agent = DQN.DQNAgent(num_clusters, num_resources)
+        job_queue_rl = generate_bernoulli_jobs_rl(num_clusters=num_clusters, num_resources=num_resources,
+                                   desired_utilization=target_utilization)
+        for episode in range(MAX_EPISODES):
+            job_queue_rl_copy = generate_bernoulli_jobs_rl(num_clusters=num_clusters, num_resources=num_resources,
+                                   desired_utilization=target_utilization)
+            clusters = []
+            for i in range(num_clusters):
+                clusters.append(Cluster(resources=num_resources))
+            episode_reward = 0
+            for step in range(args.timesteps):
+                state = []
+                total_utilization = 0
+                diff_u = 0
+                balance_u = 0
+                clusters_utilization = []
+                for index, cluster in enumerate(clusters):
+                    for i in range(len(cluster.cur_utilization)):
+                        for j in range(i, len(cluster.cur_utilization) - 1):
+                            diff_u += abs(cluster.cur_utilization[i]-cluster.cur_utilization[j])
+                    temp = 0
+                    for u in cluster.cur_utilization:
+                        state.append(u)
+                        total_utilization += u
+                        temp += u
+                    clusters_utilization.append(temp)
+                for i in range(len(clusters_utilization)):
+                    for j in range(i, len(clusters_utilization)-1):
+                        balance_u += abs(cluster.cur_utilization[i]-cluster.cur_utilization[j])
 
-                jobs_remaining = False
-                for job in jobs_to_schedule:
-                    #Get the assigned cluster
+                if len(job_queue_rl_copy) > 0:
+                    jobs_to_schedule = job_queue_rl_copy[0]
+                for u in jobs_to_schedule.requirements:
+                    state.append(u)
+                action = agent.get_action(state)
+                if action != 0:
+                    if clusters[action-1].check_job_possible(jobs_to_schedule):
+                        clusters[action - 1].schedule_job(jobs_to_schedule)
+                    else:
+                        while True:
+                            action = agent.get_action(state)
+                            if action == 0:
+                                break
+                            elif clusters[action - 1].check_job_possible(jobs_to_schedule):
+                                clusters[action - 1].schedule_job(jobs_to_schedule)
+                                break
 
-                    assigned_cluster = my_scheduler.schedule_job(clusters, job)
 
-                    #Put job on cluster
-                    if assigned_cluster == -1:
-                        jobs_remaining = True
+                for index, cluster in enumerate(clusters):
+                    cluster.step()
+                next_state = []
+                for index, cluster in enumerate(clusters):
+                    for u in cluster.cur_utilization:
+                        next_state.append(u)
+                if action == 0:
+                    jobs_to_schedule_next = job_queue_rl_copy[0]
+                else:
+                    job_queue_rl_copy.pop(0)
+                    jobs_to_schedule_next = job_queue_rl_copy[0]
+
+                for u in jobs_to_schedule_next.requirements:
+                    next_state.append(u)
+                reward = total_utilization - diff_u - balance_u
+                agent.replay_buffer.push(state, action, reward, next_state, 0)
+                episode_reward += reward
+
+                if len(agent.replay_buffer) > batch_size:
+                    agent.update(batch_size)
+
+                if step == (args.timesteps - 1) or len(job_queue_rl_copy) == 1:
+                    episode_rewards.append(episode_reward)
+                    print("Episode " + str(episode) + ": " + str(episode_reward))
+                    print("Episode loss : " + str(agent.get_loss()))
+                    break
+                step += 1
+        return episode_rewards
+
+
+    else:
+        for t in range(args.timesteps):
+            #Try to schedule all arrived jobs
+            #TODO Fix advancing past current jobs
+            while cur_job <= t:
+                if len(job_queue[cur_job]) > 0:
+
+                    #Create a copy of the list to iterate through
+                    jobs_to_schedule = job_queue[cur_job]
+                    #print(jobs_to_schedule)
+                    jobs_to_schedule = jobs_to_schedule[:]
+                    jobs_remaining = False
+                    for job in jobs_to_schedule:
+                        #Get the assigned cluster
+
+                        assigned_cluster = my_scheduler.schedule_job(clusters, job)
+                        #Put job on cluster
+                        if assigned_cluster == -1:
+                            jobs_remaining = True
+                            break
+                        else:
+                            clusters[assigned_cluster].schedule_job(job)
+
+                            job_queue[cur_job].remove(job)
+
+                    #A little messy but I suppose it is what it is
+                    if jobs_remaining:
                         break
                     else:
-                        clusters[assigned_cluster].schedule_job(job)
+                        cur_job += 1
 
-                        job_queue[cur_job].remove(job)
-
-                #A little messy but I suppose it is what it is
-                if jobs_remaining:
-                    break
                 else:
                     cur_job += 1
 
-            else:
-                cur_job += 1
-        
-        #Advance simulation
-        for index, cluster in enumerate(clusters):
-            #print(f"Advancing step in cluster {index}")
-            cluster.step()
-
+            #Advance simulation
+            #temp = []
+            for index, cluster in enumerate(clusters):
+                #print(f"Advancing step in cluster {index}")
+                #temp.append(cluster.cur_utilization)
+                cluster.step()
     fig = graph_utilization(clusters)
     fig.suptitle(f"Utilizations  with {args.scheduler} Scheduling")
     plt.savefig(args.output)
