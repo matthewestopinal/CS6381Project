@@ -27,6 +27,9 @@ def parseCmdLineArgs():
     parser.add_argument('-u', '--utilization', default=0.7, type=float, help='Desired total utilization (between 0 and 1)')
     parser.add_argument('-n', '--num_clusters', default=3, type=int, help='Number of clusters to simulate')
     parser.add_argument('-r', '--num_resources', default=2, type=int, help='Number of resources on each cluster')
+    parser.add_argument('-b', '--beta', default = 1, type=float, help='beta for reward function')
+    parser.add_argument('-c', '--gamma', default = 1, type=float, help='gamma for reward function')
+
     parser.add_argument('-a', '--algo', default='double', type=str, help='Reinforcement learning algorithm')
 
     return parser.parse_args()
@@ -90,6 +93,10 @@ def main():
         #episode_rewards = RL.mini_batch_train(env, agent, MAX_EPISODES, MAX_STEPS, BATCH_SIZE)
     elif args.scheduler == 'least-load':
         my_scheduler = sc.LeastLoadScheduler()
+
+    elif args.scheduler == 'instant-gratification':
+        my_scheduler = sc.InstantGratificationScheduler(0, args.beta, args.gamma)
+        
     num_clusters = args.num_clusters
     num_resources = args.num_resources
     target_utilization = args.utilization
