@@ -27,6 +27,7 @@ def parseCmdLineArgs():
     parser.add_argument('-u', '--utilization', default=0.7, type=float, help='Desired total utilization (between 0 and 1)')
     parser.add_argument('-n', '--num_clusters', default=3, type=int, help='Number of clusters to simulate')
     parser.add_argument('-r', '--num_resources', default=2, type=int, help='Number of resources on each cluster')
+    parser.add_argument('-p', '--alpha', default = 1.3, type=float, help='alpha for reward function')
     parser.add_argument('-b', '--beta', default = 1, type=float, help='beta for reward function')
     parser.add_argument('-c', '--gamma', default = 1, type=float, help='gamma for reward function')
 
@@ -87,7 +88,8 @@ def main():
     elif args.scheduler == 'round-robin':
         my_scheduler = sc.RoundRobinScheduler()
     elif args.scheduler == 'rl':
-        MAX_EPISODES = 1000
+        # MAX_EPISODES = 1000
+        MAX_EPISODES = 300
         #MAX_STEPS = 500
         batch_size = 32
         #episode_rewards = RL.mini_batch_train(env, agent, MAX_EPISODES, MAX_STEPS, BATCH_SIZE)
@@ -112,6 +114,7 @@ def main():
     job_queue = generate_bernoulli_jobs(num_clusters=num_clusters, num_resources=num_resources, desired_utilization=target_utilization)
     #Main Loop
     cur_job = 0
+    average_rewards = []
 
     if args.scheduler == 'rl':
         episode_rewards = []
@@ -192,7 +195,7 @@ def main():
 
                 for u in jobs_to_schedule_next.requirements:
                     next_state.append(u)
-                reward = total_utilization - diff_u - balance_u
+                reward = args.alpha * total_utilization - args.beta * diff_u - args.gamma * balance_u
                 agent.replay_buffer.push(state, action, reward, next_state, 0)
                 episode_reward += reward
 
@@ -203,9 +206,13 @@ def main():
                     episode_rewards.append(episode_reward)
                     print("Episode " + str(episode) + ": " + str(episode_reward))
                     print("Episode loss : " + str(agent.get_loss()))
+                    average_reward = np.mean(episode_rewards[:-50])
+                    average_rewards.append(average_reward)
                     break
                 step += 1
-        return episode_rewards
+        # return episode_rewards
+        # print(episode_rewards)
+        
 
 
     else:
@@ -248,12 +255,18 @@ def main():
                 #print(f"Advancing step in cluster {index}")
                 #temp.append(cluster.cur_utilization)
                 cluster.step()
-    for cluster in clusters:
-        print(cluster.__dict__)
+    # for cluster in clusters:
+    #     print(cluster.__dict__)
     fig = graph_utilization(clusters)
     fig.suptitle(f"Utilizations  with {args.scheduler} Scheduling")
     plt.savefig(args.output)
 
+    if average_rewards:
+        plt.figure()
+        plt.plot(average_rewards)
+        plt.xlabel("Episode")
+        plt.ylabel("Avg Episodic Reward")
+        plt.savefig(f"rewards_{args.output}")
 if __name__ == "__main__":
     main()
 
