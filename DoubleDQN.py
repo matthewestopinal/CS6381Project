@@ -108,13 +108,14 @@ class DDQNAgent:
         dones = dones.view(dones.size(0), 1)
 
         # compute loss
-        curr_Q = self.model.forward(states).gather(1, actions)
-        next_Q = self.target_model.forward(next_states)
-        max_next_Q = torch.max(next_Q, 1)[0]
-        max_next_Q = max_next_Q.view(max_next_Q.size(0), 1)
-        expected_Q = rewards + self.gamma * max_next_Q
+        curr_Q_s = self.model.forward(states).gather(1, actions)
+        curr_Q = self.model.forward(next_states)
+        max_curr_Q = torch.argmax(curr_Q, 1).view(actions.size(0), 1)
+
+        next_Q = self.target_model.forward(next_states).gather(1,max_curr_Q)
+        expected_Q = rewards + self.gamma * next_Q
         
-        loss = F.mse_loss(curr_Q, expected_Q.detach())
+        loss = F.mse_loss(curr_Q_s, expected_Q.detach())
         self.loss.append(loss)
         return loss
 
@@ -126,11 +127,13 @@ class DDQNAgent:
         loss.backward()
         self.optimizer.step()
         
-        # target network update
-        for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
-            target_param.data.copy_(self.tau * param + (1 - self.tau) * target_param)
 
     def get_loss(self):
         episode_loss = sum(self.loss)/len(self.loss)
         self.loss = []
         return episode_loss
+
+    def update_target(self):
+        # target network update
+        for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
+            target_param.data.copy_(self.tau * param + (1 - self.tau) * target_param)
