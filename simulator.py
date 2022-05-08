@@ -125,31 +125,40 @@ def main():
         job_queue_rl = generate_bernoulli_jobs_rl(num_clusters=num_clusters, num_resources=num_resources,
                                    desired_utilization=target_utilization)
         for episode in range(MAX_EPISODES):
+            # generate job sequence
             job_queue_rl_copy = generate_bernoulli_jobs_rl(num_clusters=num_clusters, num_resources=num_resources,
                                    desired_utilization=target_utilization)
+            # build clusters
             clusters = []
             for i in range(num_clusters):
                 clusters.append(Cluster(resources=num_resources))
+
             episode_reward = 0
             for step in range(args.timesteps):
                 state = []
-                total_utilization = 0
-                diff_u = 0
-                balance_u = 0
+                total_utilization = 0 # Util(t) in paper: sum of cluster utilizations
+                diff_u = 0 # DiffCluster(t) in paper: utilization inbalance between resources, across all clusters
+                balance_u = 0 # DiffRes(t) in paper: utilization inbalance between clusters
                 clusters_utilization = []
+
                 for index, cluster in enumerate(clusters):
+                    # should we skip when i == j? 
+                    # With only 2 resources, we might want to just take the difference between the two
                     for i in range(len(cluster.cur_utilization)):
-                        for j in range(i, len(cluster.cur_utilization) - 1):
+                        for j in range(i, len(cluster.cur_utilization)):
                             diff_u += abs(cluster.cur_utilization[i]-cluster.cur_utilization[j])
-                    temp = 0
-                    for u in cluster.cur_utilization:
-                        state.append(u)
-                        total_utilization += u
-                        temp += u
-                    clusters_utilization.append(temp)
+
+                    this_cluster_utilization = np.mean(cluster.cur_utilization) # utilization for this cluster
+                    total_utilization += this_cluster_utilization # add this cluster's utilization to Util(t)
+                    for u in cluster.cur_utilization: # append resource utilizations for this cluster to state
+                        state.append(u) 
+                    
+                    clusters_utilization.append(this_cluster_utilization)
+                
+                # calculate DiffRes(t)
                 for i in range(len(clusters_utilization)):
-                    for j in range(i, len(clusters_utilization)-1):
-                        balance_u += abs(cluster.cur_utilization[i]-cluster.cur_utilization[j])
+                    for j in range(i, len(clusters_utilization)):
+                        balance_u += abs(clusters_utilization[i]-clusters_utilization[j])
 
                 if len(job_queue_rl_copy) > 0:
                     jobs_to_schedule = job_queue_rl_copy[0]
@@ -239,6 +248,8 @@ def main():
                 #print(f"Advancing step in cluster {index}")
                 #temp.append(cluster.cur_utilization)
                 cluster.step()
+    for cluster in clusters:
+        print(cluster.__dict__)
     fig = graph_utilization(clusters)
     fig.suptitle(f"Utilizations  with {args.scheduler} Scheduling")
     plt.savefig(args.output)
