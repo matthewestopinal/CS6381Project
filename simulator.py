@@ -210,6 +210,9 @@ def main():
                     average_rewards.append(average_reward)
                     break
                 step += 1
+                
+            if args.algo == 'double':
+                agent.update_target()
         # return episode_rewards
         # print(episode_rewards)
         
