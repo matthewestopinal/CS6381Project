@@ -39,6 +39,11 @@ I thought this would be an interesting baseline to compare to. The instant grati
 
 Note that what really matters is not the values of the parameters, so much as the ratio between them.
 
+## RL Experiment
+
+# Double DQN, Max Episodes = 1000, Episode Length = 800
+![DDQN 1000eps 800steps](rl_out_1000.png)
+
 ## Experiment 3: Timing
 TODO: I noticed that the scheduler that considers a reward function takes quite a bit longer to simulate. I think this might also be true of the reinforcement learning model. As the scheduler is meant for online scheduling, timeliness could actually be a concern if there is a great number of jobs and delay is important. Will want to run some time series tests and include a table for the paper.
 
