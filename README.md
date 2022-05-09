@@ -45,10 +45,10 @@ Note that what really matters is not the values of the parameters, so much as th
 ![DDQN 1000eps 800steps](rl_out_1000.png)
 
 # Double DQN, Max Episodes = 300, Episode Length = 800, Alpha = 1.3, Beta = 1, Gamma = 1 (Utilizations)
-![DDQN 300eps 800steps](ddqn_300_13_1.png)
+![DDQN 300eps 800steps](rl_plots/ddqn_300_13_1_updated.png)
 
 # Double DQN, Max Episodes = 300, Episode Length = 800, Alpha = 1.3, Beta = 1, Gamma = 1 (Rewards)
-![Rewards DDQN 300eps 800steps](rewards_ddqn_300_13_1.png)
+![Rewards DDQN 300eps 800steps](rl_plots/rewards_ddqn_300_13_1_updated.png)
 
 ## Experiment 3: Timing
 TODO: I noticed that the scheduler that considers a reward function takes quite a bit longer to simulate. I think this might also be true of the reinforcement learning model. As the scheduler is meant for online scheduling, timeliness could actually be a concern if there is a great number of jobs and delay is important. Will want to run some time series tests and include a table for the paper.
